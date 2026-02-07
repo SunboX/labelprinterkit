@@ -37,12 +37,17 @@ async function connectBackend(mode = 'usb') {
 
 async function printSample() {
     const backend = await connectBackend('usb') // or "ble"
+    const media = Media.W12
+    const resolution = Resolution.LOW
 
-    const rowA = new BoxItem(45, [new TextItem(45, 'First line', '28px sans-serif')])
-    const rowB = new BoxItem(25, [new TextItem(25, 'Second line', '22px sans-serif')])
-    const label = new Label(Resolution.LOW, rowA, rowB)
+    // Row heights should sum to media.printArea so Job.addPage() accepts the page width.
+    const rowAHeight = Math.floor(media.printArea * 0.58)
+    const rowBHeight = media.printArea - rowAHeight
+    const rowA = new BoxItem(rowAHeight, [new TextItem(rowAHeight, 'First line', '28px sans-serif')])
+    const rowB = new BoxItem(rowBHeight, [new TextItem(rowBHeight, 'Second line', '22px sans-serif')])
+    const label = new Label(resolution, rowA, rowB)
 
-    const job = new Job(Media.W12)
+    const job = new Job(media, { resolution })
     job.addPage(label)
 
     const printer = new P700(backend) // P750W/E500/E550W are available shims too
@@ -52,7 +57,7 @@ async function printSample() {
 printSample().catch(console.error)
 ```
 
-For a richer layout with a QR code, see `examples/complex_label_with_qrcode.mjs` (uses the `qrcode` ESM from jsdelivr and exposes `window.printLabel` you can wire to a button). An interactive editor with drag-to-reorder, resizing, font/QR editing, and label size controls lives in `examples/index.html` (served over https/localhost).
+For a richer layout with a QR code, see `examples/complex_label_with_qrcode.mjs` (uses the `qrcode` ESM from jsdelivr and exposes `window.printLabel` you can wire to a button). An interactive editor with drag-to-reorder, resizing, font/QR editing, and label size controls lives in `examples/complex_label_with_frontend/index.html` (served over https/localhost).
 
 ## Run the web editor locally
 
@@ -60,6 +65,7 @@ For a richer layout with a QR code, see `examples/complex_label_with_qrcode.mjs`
 npm install
 PORT=3000 npm start
 # then open http://localhost:3000/examples/complex_label_with_frontend/
+npm test
 ```
 
 The Express server (`examples/server.mjs`) serves the repo as static files; the editor is under `/examples/complex_label_with_frontend/`. Use a Chromium-based browser with WebUSB/WebBluetooth enabled. When using BLE, populate the UUID fields in the UI for your device. Printing still requires a user gesture (click) to grant device access. You can also set a custom media length (mm) in the UI; it converts to dots using the selected resolution’s Y DPI and enforces the protocol minimums.

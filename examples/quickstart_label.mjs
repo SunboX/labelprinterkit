@@ -31,12 +31,18 @@ async function connectBackend(mode = 'usb') {
 
 export async function printSample(mode = 'usb') {
     const backend = await connectBackend(mode)
+    const media = Media.W12
+    const resolution = Resolution.LOW
 
-    const rowA = new BoxItem(45, [new TextItem(45, 'First line', '28px sans-serif')])
-    const rowB = new BoxItem(25, [new TextItem(25, 'Second line', '22px sans-serif')])
-    const label = new Label(Resolution.LOW, rowA, rowB)
+    // Row heights must sum to media.printArea so Job.addPage width validation passes.
+    const firstLineHeight = Math.floor(media.printArea * 0.58)
+    const secondLineHeight = media.printArea - firstLineHeight
 
-    const job = new Job(Media.W12)
+    const rowA = new BoxItem(firstLineHeight, [new TextItem(firstLineHeight, 'First line', '28px sans-serif')])
+    const rowB = new BoxItem(secondLineHeight, [new TextItem(secondLineHeight, 'Second line', '22px sans-serif')])
+    const label = new Label(resolution, rowA, rowB)
+
+    const job = new Job(media, { resolution })
     job.addPage(label)
 
     const printer = new P700(backend) // P750W/E500/E550W are available shims too

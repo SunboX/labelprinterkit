@@ -498,7 +498,7 @@ async function doPrint() {
     try {
         const { printCanvas, media, res } = await buildCanvasFromState()
         const label = new Label(res, printCanvas)
-        const job = new Job(media || Media[state.media] || Media.W24)
+        const job = new Job(media || Media[state.media] || Media.W24, { resolution: res })
         job.addPage(label)
 
         setStatus(`Requesting ${state.backend.toUpperCase()} device...`, 'info')
@@ -540,6 +540,7 @@ function bindEvents() {
     })
     els.resolution.addEventListener('change', () => {
         state.resolution = els.resolution.value
+        renderPreview()
     })
     els.printer.addEventListener('change', () => {
         state.printer = els.printer.value
