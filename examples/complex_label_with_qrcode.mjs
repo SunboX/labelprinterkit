@@ -18,22 +18,25 @@ import {
     WebBluetoothBackend
 } from '../src/index.mjs'
 
-async function buildQrCanvas(data, size = 180) {
+async function buildQrCanvas(data, size) {
     const canvas = document.createElement('canvas')
     await QRCode.toCanvas(canvas, data, { errorCorrectionLevel: 'M', margin: 0, width: size })
     return canvas
 }
 
-async function buildLabel() {
-    const qr = await buildQrCanvas('https://example.com/device/port-24', 180)
+async function buildLabel(media, resolution = Resolution.LOW) {
+    const headerHeight = Math.floor(media.printArea * 0.3)
+    const lineHeight = Math.floor(media.printArea * 0.17)
+    const qrHeight = media.printArea - headerHeight - lineHeight * 2
+    const qr = await buildQrCanvas('https://example.com/device/port-24', qrHeight)
 
-    const header = new BoxItem(45, [new TextItem(45, 'Network Port', '32px sans-serif')])
-    const lineA = new BoxItem(25, [new TextItem(25, 'Room: 1.23', '22px sans-serif')])
-    const lineB = new BoxItem(25, [new TextItem(25, 'Jack: A12', '22px monospace')])
-    const qrRow = new BoxItem(qr.height, [qr])
+    const header = new BoxItem(headerHeight, [new TextItem(headerHeight, 'Network Port', '30px sans-serif')])
+    const lineA = new BoxItem(lineHeight, [new TextItem(lineHeight, 'Room: 1.23', '21px sans-serif')])
+    const lineB = new BoxItem(lineHeight, [new TextItem(lineHeight, 'Jack: A12', '21px monospace')])
+    const qrRow = new BoxItem(qrHeight, [qr])
 
-    // Combine rows vertically.
-    return new Label(Resolution.LOW, header, lineA, lineB, qrRow)
+    // Row heights must add up to media.printArea so the page width matches the loaded tape.
+    return new Label(resolution, header, lineA, lineB, qrRow)
 }
 
 async function connectBackend(mode = 'usb') {
@@ -54,8 +57,10 @@ async function connectBackend(mode = 'usb') {
 
 export async function printLabel(mode = 'usb') {
     const backend = await connectBackend(mode)
-    const label = await buildLabel()
-    const job = new Job(Media.W24)
+    const media = Media.W24
+    const resolution = Resolution.LOW
+    const label = await buildLabel(media, resolution)
+    const job = new Job(media, { resolution })
     job.addPage(label)
 
     // Pick the right shim for your model.

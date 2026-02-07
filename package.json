@@ -4,7 +4,8 @@
   "description": "Browser-ready label printer toolkit demo (WebUSB/WebBluetooth) with editor UI",
   "type": "module",
   "scripts": {
-    "start": "node examples/server.mjs"
+    "start": "node examples/server.mjs",
+    "test": "node --test"
   },
   "dependencies": {
     "express": "^4.19.2"
