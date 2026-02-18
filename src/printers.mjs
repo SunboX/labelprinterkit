@@ -13,6 +13,10 @@ import {
 } from './constants.mjs'
 import { packbitsEncode } from './packbits.mjs'
 
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 function concatBytes(...arrays) {
     const size = arrays.reduce((acc, arr) => acc + arr.length, 0)
     const out = new Uint8Array(size)
@@ -59,6 +63,55 @@ class ErrorState {
     toString() {
         return `<Errors ${JSON.stringify(this.flags)}>`
     }
+}
+
+function describeMedia(media) {
+    if (!media || media === Media.NO_MEDIA) {
+        return 'no tape'
+    }
+    if (media === Media.UNSUPPORTED_MEDIA) {
+        return 'an unsupported tape'
+    }
+    return `${media.width}mm tape`
+}
+
+function statusMessage(status, expectedMedia) {
+    const flags = status.errors.flags
+    if (flags.COVER_OPEN) {
+        return 'Printer cover is open. Close the cover and try again.'
+    }
+    if (flags.NO_MEDIA) {
+        return 'No tape is loaded. Insert a tape cassette and try again.'
+    }
+    if (flags.CUTTER_JAM) {
+        return 'Printer cutter jam detected. Clear the jam and try again.'
+    }
+    if (flags.OVERHEATING) {
+        return 'Printer is overheating. Let it cool down, then try again.'
+    }
+    if (flags.WEAK_BATTERY) {
+        return 'Printer battery is low. Charge or power the printer and try again.'
+    }
+    if (flags.REPLACE_MEDIA) {
+        const loaded = describeMedia(status.media)
+        const expected = describeMedia(expectedMedia)
+        if (loaded !== expected && status.media !== Media.NO_MEDIA && status.media !== Media.UNSUPPORTED_MEDIA) {
+            return `Loaded media mismatch: printer has ${loaded}, but this job expects ${expected}. Load ${expected} and retry.`
+        }
+        return `Loaded media is incompatible with this print job. The job expects ${expected}. Replace media and retry.`
+    }
+
+    if (expectedMedia && status.media !== expectedMedia) {
+        const loaded = describeMedia(status.media)
+        const expected = describeMedia(expectedMedia)
+        return `Loaded media mismatch: printer has ${loaded}, but this job expects ${expected}. Load ${expected} and retry.`
+    }
+
+    if (!status.ready()) {
+        return `Printer reported an error (${status.errors.toString()}).`
+    }
+
+    return null
 }
 
 export class Status {
@@ -108,16 +161,45 @@ export class GenericPrinter extends BasePrinter {
     }
 
     async getStatus() {
+        return this._requestStatus({ reset: true, retries: 0, retryDelayMs: 0 })
+    }
+
+    async _requestStatus({ reset = false, retries = 0, retryDelayMs = 0 } = {}) {
         if (typeof this.backend.getStatus === 'function') {
             return this.backend.getStatus()
         }
-        await this.reset()
-        await this.backend.write(new Uint8Array([0x1b, 0x69, 0x53]))
-        const data = await this.backend.read(32)
-        if (!data) {
-            throw new Error('No response from printer')
+        let attempt = 0
+        let lastError = null
+        while (attempt <= retries) {
+            try {
+                if (reset) {
+                    await this.reset()
+                }
+                await this.backend.write(new Uint8Array([0x1b, 0x69, 0x53]))
+                const data = await this.backend.read(32)
+                if (!data) {
+                    throw new Error('No response from printer')
+                }
+                return new Status(data)
+            } catch (err) {
+                lastError = err
+                if (attempt === retries) {
+                    throw lastError
+                }
+                if (retryDelayMs > 0) {
+                    await sleep(retryDelayMs)
+                }
+                attempt += 1
+            }
         }
-        return new Status(data)
+        throw lastError || new Error('No response from printer')
+    }
+
+    _assertStatus(status, job) {
+        const message = statusMessage(status, job.media)
+        if (message) {
+            throw new Error(message)
+        }
     }
 
     async print(job) {
@@ -127,6 +209,9 @@ export class GenericPrinter extends BasePrinter {
         if (!this._supportedResolutions.some((res) => res.id === job.resolution.id)) {
             throw new Error('Resolution is not supported by this printer')
         }
+
+        const preStatus = await this._requestStatus({ reset: true, retries: 0, retryDelayMs: 0 })
+        this._assertStatus(preStatus, job)
 
         await this.reset()
 
@@ -211,6 +296,9 @@ export class GenericPrinter extends BasePrinter {
         }
 
         await this.backend.write(new Uint8Array([0x1a]))
+
+        const postStatus = await this._requestStatus({ reset: false, retries: 5, retryDelayMs: 150 })
+        this._assertStatus(postStatus, job)
     }
 }
 
