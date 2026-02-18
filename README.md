@@ -79,6 +79,18 @@ The Express server (`examples/server.mjs`) serves the repo as static files; the 
     -   `WebUSBBackend` for USB printer class devices.
     -   `WebBluetoothBackend` for BLE devices when you supply the service/characteristic UUIDs and enable notifications.
 
+#### Documentation
+
+-   [Docs Index](docs/README.md)
+-   [Getting Started](docs/getting-started.md)
+-   [Layout And Pages](docs/layout-and-pages.md)
+-   [Job And Media](docs/job-and-media.md)
+-   [Printers And Status](docs/printers-and-status.md)
+-   [Backends](docs/backends.md)
+-   [Constants Reference](docs/constants-reference.md)
+-   [Raster And Compression](docs/raster-and-compression.md)
+-   [Printer Status Errors](docs/printer-status-errors.md)
+
 #### Notes
 
 -   WebUSB/WebBluetooth require a secure context (https or localhost) and a user gesture to request devices/ports.
