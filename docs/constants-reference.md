@@ -32,3 +32,8 @@ Use `getMedia(width, mediaType)` for mapping raw status values to a media profil
 
 - `VariousModesSettings`: `AUTO_CUT`, `MIRROR_PRINTING`.
 - `AdvancedModeSettings`: `HALF_CUT`, `CHAIN_PRINTING`, `SPECIAL_TAPE`, `HIGH_RESOLUTION`, `BUFFER_CLEARING`.
+
+## Version API
+
+- `LIBRARY_VERSION`: Current library version string.
+- `getLibraryVersion()`: Returns `LIBRARY_VERSION`.

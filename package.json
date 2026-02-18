@@ -1,6 +1,6 @@
 {
   "name": "labelprinterkit-web",
-  "version": "1.0.2",
+  "version": "1.0.4",
   "description": "Browser-ready label printer toolkit demo (WebUSB/WebBluetooth) with editor UI",
   "type": "module",
   "scripts": {

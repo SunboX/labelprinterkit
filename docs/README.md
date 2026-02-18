@@ -10,6 +10,7 @@ This folder contains module-level documentation for the library.
 - `printers-and-status.md`: Printer classes, print lifecycle, and status model.
 - `backends.md`: WebUSB and WebBluetooth backend behavior and options.
 - `constants-reference.md`: Exported constants/enums and when to use them.
+- `versioning.md`: Runtime library version API (`getLibraryVersion`, `LIBRARY_VERSION`).
 - `raster-and-compression.md`: Bitmap layout and PackBits line compression.
 - `printer-status-errors.md`: User-facing status/error messages and media mismatch handling.
 
@@ -26,6 +27,11 @@ import {
   TextItem,
   BoxItem,
   P700,
-  WebUSBBackend
+  WebUSBBackend,
+  getLibraryVersion
 } from './src/index.mjs'
+```
+
+```js
+getLibraryVersion() // "1.0.4"
 ```

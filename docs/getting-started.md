@@ -46,3 +46,11 @@ await printer.print(job)
 - The loaded cassette must match the job media; printer status checks run before and after print.
 
 If media/status is wrong (for example, 24mm loaded but 9mm requested), `printer.print(...)` throws a user-facing error message.
+
+## Check Library Version At Runtime
+
+```js
+import { getLibraryVersion } from './src/index.mjs'
+
+console.log(getLibraryVersion()) // "1.0.4"
+```

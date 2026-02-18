@@ -15,7 +15,8 @@ import {
     TextItem,
     BoxItem,
     WebUSBBackend,
-    WebBluetoothBackend
+    WebBluetoothBackend,
+    getLibraryVersion
 } from './src/index.mjs'
 
 async function connectBackend(mode = 'usb') {
@@ -57,6 +58,14 @@ async function printSample() {
 printSample().catch(console.error)
 ```
 
+Runtime version access:
+
+```js
+import { getLibraryVersion } from './src/index.mjs'
+
+console.log(getLibraryVersion()) // "1.0.4"
+```
+
 For a richer layout with a QR code, see `examples/complex_label_with_qrcode.mjs` (uses the `qrcode` ESM from jsdelivr and exposes `window.printLabel` you can wire to a button). An interactive editor with drag-to-reorder, resizing, font/QR editing, and label size controls lives in `examples/complex_label_with_frontend/index.html` (served over https/localhost).
 
 ## Run the web editor locally
@@ -75,6 +84,7 @@ The Express server (`examples/server.mjs`) serves the repo as static files; the 
 -   `Label`, `TextItem`, `BoxItem` (from `src/label.mjs`): Canvas-based layout helpers. You can also use `Page.fromImageData(...)` if you already have a bitmap.
 -   `Job` (from `src/job.mjs`): Validates media width/resolution, supports auto-cut, chain printing, and special tape flags.
 -   Printers (from `src/printers.mjs`): Implements the Brother raster protocol with PackBits compression.
+-   `getLibraryVersion()` / `LIBRARY_VERSION` (from `src/version.mjs`): Runtime library version access.
 -   Backends:
     -   `WebUSBBackend` for USB printer class devices.
     -   `WebBluetoothBackend` for BLE devices when you supply the service/characteristic UUIDs and enable notifications.
