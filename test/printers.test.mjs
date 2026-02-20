@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { Job, Media, MediaType, P700, Resolution, StatusCodes } from '../src/index.mjs'
+import { Job, Media, MediaType, P700, Resolution, StatusCodes, encodeLine } from '../src/index.mjs'
 
 function page({ width, resolution = Resolution.LOW, length = Resolution.LOW.minLength } = {}) {
     return { width, resolution, length, lines: () => [] }
@@ -42,6 +42,28 @@ function makeJob(media = Media.W9) {
     const job = new Job(media, { resolution: Resolution.LOW })
     job.addPage(page({ width: media.printArea }))
     return job
+}
+
+function makeRasterPage(media = Media.W9) {
+    const templates = [
+        new Uint8Array([0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00]),
+        new Uint8Array([0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff]),
+        new Uint8Array([0x11, 0x22, 0x44, 0x88, 0x11, 0x22, 0x44, 0x88])
+    ]
+    const lines = Array.from({ length: Resolution.LOW.minLength }, (_, index) => templates[index % templates.length].slice())
+    return {
+        width: media.printArea,
+        resolution: Resolution.LOW,
+        length: lines.length,
+        lines: () => lines.map((line) => line.slice())
+    }
+}
+
+function makeRasterJob(media = Media.W9) {
+    const printablePage = makeRasterPage(media)
+    const job = new Job(media, { resolution: Resolution.LOW })
+    job.addPage(printablePage)
+    return { job, printablePage }
 }
 
 test('Printer reports friendly REPLACE_MEDIA message for loaded tape width mismatch', async () => {
@@ -85,4 +107,34 @@ test('Printer continues when pre and post status both match the job media', asyn
     const printer = new P700(backend)
 
     await assert.doesNotReject(printer.print(makeJob(Media.W9)))
+})
+
+test('Printer writes identical bytes with pre-encoded page lines', async () => {
+    const media = Media.W9
+    const { job: defaultJob, printablePage } = makeRasterJob(media)
+    const encodedLines = printablePage.lines().map((line) => encodeLine(line, media.lmargin))
+
+    const baselineBackend = new FakeBackend([makeStatus({ mediaWidth: media.width }), makeStatus({ mediaWidth: media.width })])
+    const encodedBackend = new FakeBackend([makeStatus({ mediaWidth: media.width }), makeStatus({ mediaWidth: media.width })])
+
+    await new P700(baselineBackend).print(defaultJob)
+
+    const { job: preEncodedJob } = makeRasterJob(media)
+    await new P700(encodedBackend).print(preEncodedJob, { encodedPages: [{ lines: encodedLines }] })
+
+    assert.deepEqual(encodedBackend.writes, baselineBackend.writes)
+})
+
+test('Printer rejects pre-encoded lines if line count does not match page length', async () => {
+    const media = Media.W9
+    const { job } = makeRasterJob(media)
+    const backend = new FakeBackend([makeStatus({ mediaWidth: media.width })])
+    const printer = new P700(backend)
+
+    await assert.rejects(
+        printer.print(job, {
+            encodedPages: [{ lines: [new Uint8Array([0x00])] }]
+        }),
+        /Pre-encoded page line count does not match page length/
+    )
 })

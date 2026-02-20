@@ -12,8 +12,8 @@ Use the runtime version API to read the exact library version that is currently 
 ```js
 import { getLibraryVersion, LIBRARY_VERSION } from './src/index.mjs'
 
-console.log(getLibraryVersion()) // "1.0.4"
-console.log(LIBRARY_VERSION) // "1.0.4"
+console.log(getLibraryVersion()) // "1.0.5"
+console.log(LIBRARY_VERSION) // "1.0.5"
 ```
 
 ## When To Use

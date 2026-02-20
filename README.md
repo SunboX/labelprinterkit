@@ -63,7 +63,7 @@ Runtime version access:
 ```js
 import { getLibraryVersion } from './src/index.mjs'
 
-console.log(getLibraryVersion()) // "1.0.4"
+console.log(getLibraryVersion()) // "1.0.5"
 ```
 
 For a richer layout with a QR code, see `examples/complex_label_with_qrcode.mjs` (uses the `qrcode` ESM from jsdelivr and exposes `window.printLabel` you can wire to a button). An interactive editor with drag-to-reorder, resizing, font/QR editing, and label size controls lives in `examples/complex_label_with_frontend/index.html` (served over https/localhost).

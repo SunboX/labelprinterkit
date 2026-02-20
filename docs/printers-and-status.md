@@ -10,13 +10,18 @@
 
 ## Print Lifecycle
 
-`GenericPrinter.print(job)` does:
+`GenericPrinter.print(job, options?)` does:
 
 1. Validate job media/resolution support.
 2. Request pre-flight status and fail early on printer/media errors.
 3. Reset printer and send raster commands/page lines.
 4. Send final print command.
 5. Request post-print status and fail on late errors.
+
+`options.encodedPages` can be provided to skip inline per-line compression:
+
+- `encodedPages[i].lines` should contain prebuilt line payloads from `encodeLine(...)`.
+- When present, printer transmission uses those payloads directly.
 
 Status requests use `_requestStatus(...)`; for non-custom backends this sends `ESC i S` and parses a 32-byte response.
 
