@@ -13,7 +13,7 @@ import {
     WebUSBBackend,
     WebBluetoothBackend
 } from '../../src/index.mjs'
-import { preparePrintDataInWorker } from './print-prep-client.mjs'
+import { preparePrintDataInWorker, warmPrintPrepWorker } from './print-prep-client.mjs'
 
 const els = {
     items: document.querySelector('[data-items]'),
@@ -58,6 +58,7 @@ const defaultState = {
 }
 
 let state = JSON.parse(JSON.stringify(defaultState))
+const PREVIEW_IDLE_TIMEOUT_MS = 120
 
 function setStatus(text, type = 'info') {
     els.status.textContent = text
@@ -145,7 +146,7 @@ function renderItemsList() {
                 item.data = e.target.value
                 item._qrCache = null
             }
-            renderPreview()
+            requestPreviewRender('idle')
         })
         contentWrap.append(label, input)
 
@@ -155,20 +156,20 @@ function renderItemsList() {
         if (item.type !== 'text') {
             const heightCtrl = slider(sizeLabel, item.height, 20, 280, 1, (v) => {
                 item.height = v
-                renderPreview()
+                requestPreviewRender('idle')
             })
             controls.appendChild(heightCtrl)
         }
 
         const offsetCtrl = slider('X offset', item.xOffset ?? 0, 0, 50, 1, (v) => {
             item.xOffset = v
-            renderPreview()
+            requestPreviewRender('idle')
         })
         controls.appendChild(offsetCtrl)
 
         const yOffsetCtrl = slider('Y offset', item.yOffset ?? 0, -50, 50, 1, (v) => {
             item.yOffset = v
-            renderPreview()
+            requestPreviewRender('idle')
         })
         controls.appendChild(yOffsetCtrl)
 
@@ -181,13 +182,13 @@ function renderItemsList() {
             fontInput.value = item.fontFamily
             fontInput.addEventListener('input', (e) => {
                 item.fontFamily = e.target.value
-                renderPreview()
+                requestPreviewRender('idle')
             })
             fontCtrl.append(fontLabel, fontInput)
 
             const sizeCtrl = slider('Font size', item.fontSize, 10, 64, 1, (v) => {
                 item.fontSize = v
-                renderPreview()
+                requestPreviewRender('idle')
             })
 
             controls.append(fontCtrl, sizeCtrl)
@@ -195,7 +196,7 @@ function renderItemsList() {
             const sizeCtrl = slider('QR size', item.size, 60, 240, 4, async (v) => {
                 item.size = v
                 item._qrCache = null
-                renderPreview()
+                requestPreviewRender('idle')
             })
             controls.append(sizeCtrl)
         }
@@ -205,7 +206,7 @@ function renderItemsList() {
         remove.addEventListener('click', () => {
             state.items.splice(index, 1)
             renderItemsList()
-            renderPreview()
+            requestPreviewRender('urgent')
         })
 
         card.append(meta, contentWrap, controls, remove)
@@ -230,7 +231,7 @@ function addTextItem() {
         xOffset: 4
     })
     renderItemsList()
-    renderPreview()
+    requestPreviewRender('urgent')
 }
 
 function addQrItem() {
@@ -243,7 +244,7 @@ function addQrItem() {
         xOffset: 4
     })
     renderItemsList()
-    renderPreview()
+    requestPreviewRender('urgent')
 }
 
 function bindDrag() {
@@ -273,7 +274,7 @@ function bindDrag() {
         state.items.splice(toIndex, 0, moved)
         fromIndex = null
         renderItemsList()
-        renderPreview()
+        requestPreviewRender('urgent')
     })
 }
 
@@ -431,13 +432,67 @@ async function buildCanvasFromState() {
 
 let previewBusy = false
 let previewQueued = false
-async function renderPreview() {
+let cancelPendingPreview = null
+let pendingPreviewPriority = null
+
+function scheduleIdle(callback, { timeout = PREVIEW_IDLE_TIMEOUT_MS } = {}) {
+    if (typeof requestIdleCallback === 'function') {
+        const idleId = requestIdleCallback(callback, { timeout })
+        return () => {
+            if (typeof cancelIdleCallback === 'function') {
+                cancelIdleCallback(idleId)
+            }
+        }
+    }
+    const timeoutId = setTimeout(() => callback({ didTimeout: true, timeRemaining: () => 0 }), 1)
+    return () => clearTimeout(timeoutId)
+}
+
+function scheduleNextFrame(callback) {
+    if (typeof requestAnimationFrame === 'function') {
+        const frameId = requestAnimationFrame(() => callback())
+        return () => cancelAnimationFrame(frameId)
+    }
+    const timeoutId = setTimeout(callback, 0)
+    return () => clearTimeout(timeoutId)
+}
+
+function queuePreviewRender() {
     if (previewBusy) {
         previewQueued = true
         return
     }
     previewBusy = true
     previewQueued = false
+    void runPreviewRender()
+}
+
+function requestPreviewRender(priority = 'urgent') {
+    const normalizedPriority = priority === 'idle' ? 'idle' : 'urgent'
+    if (cancelPendingPreview) {
+        if (pendingPreviewPriority === 'urgent' || pendingPreviewPriority === normalizedPriority) {
+            return
+        }
+        cancelPendingPreview()
+        cancelPendingPreview = null
+        pendingPreviewPriority = null
+    }
+
+    const execute = () => {
+        cancelPendingPreview = null
+        pendingPreviewPriority = null
+        queuePreviewRender()
+    }
+
+    pendingPreviewPriority = normalizedPriority
+    if (normalizedPriority === 'idle') {
+        cancelPendingPreview = scheduleIdle(execute, { timeout: PREVIEW_IDLE_TIMEOUT_MS })
+        return
+    }
+    cancelPendingPreview = scheduleNextFrame(execute)
+}
+
+async function runPreviewRender() {
     try {
         const { preview, width, height, res, printWidth, marginStart, marginEnd, isHorizontal } =
             await buildCanvasFromState()
@@ -461,7 +516,8 @@ async function renderPreview() {
     } finally {
         previewBusy = false
         if (previewQueued) {
-            renderPreview()
+            previewQueued = false
+            requestPreviewRender('urgent')
         }
     }
 }
@@ -549,20 +605,20 @@ function bindEvents() {
     els.orientation.addEventListener('change', () => {
         state.orientation = els.orientation.value
         renderItemsList()
-        renderPreview()
+        requestPreviewRender('urgent')
     })
     els.media.addEventListener('change', () => {
         state.media = els.media.value
-        renderPreview()
+        requestPreviewRender('urgent')
     })
     els.mediaLength.addEventListener('input', (e) => {
         const val = e.target.value.trim()
         state.mediaLengthMm = val ? Number(val) : null
-        renderPreview()
+        requestPreviewRender('idle')
     })
     els.resolution.addEventListener('change', () => {
         state.resolution = els.resolution.value
-        renderPreview()
+        requestPreviewRender('urgent')
     })
     els.printer.addEventListener('change', () => {
         state.printer = els.printer.value
@@ -583,7 +639,17 @@ function init() {
     renderItemsList()
     bindDrag()
     bindEvents()
-    renderPreview()
+    requestPreviewRender('urgent')
+    scheduleIdle(
+        () => {
+            try {
+                warmPrintPrepWorker()
+            } catch (err) {
+                console.warn('Print prep worker warm-up skipped.', err)
+            }
+        },
+        { timeout: PREVIEW_IDLE_TIMEOUT_MS }
+    )
 }
 
 init()
