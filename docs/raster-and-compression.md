@@ -19,6 +19,8 @@ Pages are represented as 1-bit raster data:
 
 The printer line encoder (`encodeLine(...)`) uses this compressed output and prefixes each line with its compressed payload length (little-endian).
 
+In the frontend editor demo, print preparation runs in `print-prep.worker.mjs` and sends pre-encoded line payloads back to the main thread.
+
 ## Why It Matters
 
 Raster + PackBits reduces transfer size and follows the Brother raster protocol expected by the printer firmware.
