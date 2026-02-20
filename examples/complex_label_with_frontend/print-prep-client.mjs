@@ -63,6 +63,10 @@ function getWorker() {
     return sharedWorker
 }
 
+export function warmPrintPrepWorker() {
+    getWorker()
+}
+
 export function preparePrintDataInWorker({ imageData, leftPadding = 0, resolutionId = null, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
     if (!imageData || typeof imageData.width !== 'number' || typeof imageData.height !== 'number' || !imageData.data) {
         return Promise.reject(new Error('imageData with width, height, and data is required'))
