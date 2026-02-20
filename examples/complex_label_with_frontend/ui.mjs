@@ -1,6 +1,7 @@
 import QRCode from 'https://cdn.jsdelivr.net/npm/qrcode@1.5.1/+esm'
 import {
     Label,
+    Page,
     Job,
     Media,
     Resolution,
@@ -12,6 +13,7 @@ import {
     WebUSBBackend,
     WebBluetoothBackend
 } from '../../src/index.mjs'
+import { preparePrintDataInWorker } from './print-prep-client.mjs'
 
 const els = {
     items: document.querySelector('[data-items]'),
@@ -497,15 +499,35 @@ async function doPrint() {
     els.print.disabled = true
     try {
         const { printCanvas, media, res } = await buildCanvasFromState()
-        const label = new Label(res, printCanvas)
-        const job = new Job(media || Media[state.media] || Media.W24, { resolution: res })
-        job.addPage(label)
+        const selectedMedia = media || Media[state.media] || Media.W24
+        const job = new Job(selectedMedia, { resolution: res })
+
+        let encodedPages = null
+        try {
+            const ctx = printCanvas.getContext('2d')
+            if (!ctx) {
+                throw new Error('2D canvas context is not available for print preparation')
+            }
+            const imageData = ctx.getImageData(0, 0, printCanvas.width, printCanvas.height)
+            const prepared = await preparePrintDataInWorker({
+                imageData,
+                leftPadding: selectedMedia.lmargin || 0,
+                resolutionId: res.id
+            })
+            const page = new Page(prepared.bitmap, prepared.width, prepared.length, res)
+            job.addPage(page)
+            encodedPages = [{ lines: prepared.encodedLines }]
+        } catch (workerError) {
+            console.warn('Worker-based print preparation failed. Falling back to synchronous preparation.', workerError)
+            const label = new Label(res, printCanvas)
+            job.addPage(label)
+        }
 
         setStatus(`Requesting ${state.backend.toUpperCase()} device...`, 'info')
         const backend = await connectBackend()
         const PrinterClass = printerMap[state.printer] || P700
         const printer = new PrinterClass(backend)
-        await printer.print(job)
+        await printer.print(job, encodedPages ? { encodedPages } : undefined)
         setStatus('Print job sent.', 'success')
     } catch (err) {
         console.error(err)

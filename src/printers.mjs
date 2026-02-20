@@ -202,13 +202,14 @@ export class GenericPrinter extends BasePrinter {
         }
     }
 
-    async print(job) {
+    async print(job, { encodedPages = null } = {}) {
         if ([Media.NO_MEDIA, Media.UNSUPPORTED_MEDIA].includes(job.media)) {
             throw new Error('Unsupported media')
         }
         if (!this._supportedResolutions.some((res) => res.id === job.resolution.id)) {
             throw new Error('Resolution is not supported by this printer')
         }
+        const selectedEncodedPages = Array.isArray(encodedPages) ? encodedPages : null
 
         const preStatus = await this._requestStatus({ reset: true, retries: 0, retryDelayMs: 0 })
         this._assertStatus(preStatus, job)
@@ -283,9 +284,23 @@ export class GenericPrinter extends BasePrinter {
             // Enable compression mode
             await this.backend.write(new Uint8Array([0x4d, 0x02]))
 
-            for (const line of page.lines()) {
-                const encoded = encodeLine(line, offset)
-                await this.backend.write(concatBytes(new Uint8Array([0x47]), encoded))
+            const preEncodedLines = selectedEncodedPages?.[i]?.lines ?? null
+            if (preEncodedLines) {
+                if (!Array.isArray(preEncodedLines)) {
+                    throw new Error('encodedPages[i].lines must be an array when provided')
+                }
+                if (preEncodedLines.length !== page.length) {
+                    throw new Error('Pre-encoded page line count does not match page length')
+                }
+                for (const encodedLine of preEncodedLines) {
+                    const payload = encodedLine instanceof Uint8Array ? encodedLine : new Uint8Array(encodedLine)
+                    await this.backend.write(concatBytes(new Uint8Array([0x47]), payload))
+                }
+            } else {
+                for (const line of page.lines()) {
+                    const encoded = encodeLine(line, offset)
+                    await this.backend.write(concatBytes(new Uint8Array([0x47]), encoded))
+                }
             }
 
             await this.backend.write(new Uint8Array([0x5a]))
