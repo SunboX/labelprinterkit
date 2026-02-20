@@ -63,7 +63,7 @@ Runtime version access:
 ```js
 import { getLibraryVersion } from './src/index.mjs'
 
-console.log(getLibraryVersion()) // "1.0.5"
+console.log(getLibraryVersion()) // "1.0.7"
 ```
 
 For a richer layout with a QR code, see `examples/complex_label_with_qrcode.mjs` (uses the `qrcode` ESM from jsdelivr and exposes `window.printLabel` you can wire to a button). An interactive editor with drag-to-reorder, resizing, font/QR editing, and label size controls lives in `examples/complex_label_with_frontend/index.html` (served over https/localhost).
@@ -78,6 +78,8 @@ npm test
 ```
 
 The Express server (`examples/server.mjs`) serves the repo as static files; the editor is under `/examples/complex_label_with_frontend/`. Use a Chromium-based browser with WebUSB/WebBluetooth enabled. When using BLE, populate the UUID fields in the UI for your device. Printing still requires a user gesture (click) to grant device access. You can also set a custom media length (mm) in the UI; it converts to dots using the selected resolution’s Y DPI and enforces the protocol minimums.
+
+The editor uses dedicated Web Workers for preview rendering (`preview-render.worker.mjs`) and raster/compression print preparation (`print-prep.worker.mjs`). If worker APIs are unavailable, it falls back to main-thread rendering/preparation.
 
 #### API highlights
 

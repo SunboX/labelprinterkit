@@ -14,6 +14,16 @@ import {
     WebBluetoothBackend
 } from '../../src/index.mjs'
 import { preparePrintDataInWorker, warmPrintPrepWorker } from './print-prep-client.mjs'
+import { preparePreviewInWorker, warmPreviewWorker } from './preview-render-client.mjs'
+import {
+    FEED_PAD_START,
+    buildPreviewStateKey,
+    buildRenderContext,
+    computeRenderLength,
+    computeTextSpan,
+    normalizePreviewState,
+    resolveTextMetrics
+} from './preview-layout-shared.mjs'
 
 const els = {
     items: document.querySelector('[data-items]'),
@@ -59,6 +69,9 @@ const defaultState = {
 
 let state = JSON.parse(JSON.stringify(defaultState))
 const PREVIEW_IDLE_TIMEOUT_MS = 120
+let previewWorkerUnavailable = false
+let latestPreviewPayload = null
+const mainThreadQrCache = new Map()
 
 function setStatus(text, type = 'info') {
     els.status.textContent = text
@@ -144,7 +157,6 @@ function renderItemsList() {
                 item.text = e.target.value
             } else {
                 item.data = e.target.value
-                item._qrCache = null
             }
             requestPreviewRender('idle')
         })
@@ -195,7 +207,6 @@ function renderItemsList() {
         } else {
             const sizeCtrl = slider('QR size', item.size, 60, 240, 4, async (v) => {
                 item.size = v
-                item._qrCache = null
                 requestPreviewRender('idle')
             })
             controls.append(sizeCtrl)
@@ -278,32 +289,27 @@ function bindDrag() {
     })
 }
 
-async function buildQrCanvas(data, size) {
+function resolveMediaAndResolution(snapshot) {
+    const media = Media[snapshot.media] || Media.W24
+    const res = Resolution[snapshot.resolution] || Resolution.LOW
+    return { media, res }
+}
+
+async function getMainThreadQrCanvas(data, size) {
+    const key = `${data || ''}::${size}`
+    if (mainThreadQrCache.has(key)) {
+        return mainThreadQrCache.get(key)
+    }
     const canvas = document.createElement('canvas')
     await QRCode.toCanvas(canvas, data || '', { errorCorrectionLevel: 'M', margin: 0, width: size })
-    return canvas
-}
-
-function measureText(ctx, text, size, family) {
-    ctx.font = `${size}px ${family}`
-    const metrics = ctx.measureText(text || '')
-    const ascent = metrics.actualBoundingBoxAscent || size
-    const descent = metrics.actualBoundingBoxDescent || 0
-    const width = Math.ceil(metrics.width)
-    const height = Math.ceil(ascent + descent)
-    return { width, height, ascent, descent }
-}
-
-function resolveTextMetrics(text, family, requestedSize, maxHeight, ctx) {
-    const limit = Math.max(4, maxHeight)
-    let size = Math.min(Math.max(4, requestedSize), limit * 3) // allow overshoot; shrink only if needed
-    let { width, height } = measureText(ctx, text, size, family)
-    while (height > limit && size > 4) {
-        size -= 1
-        ;({ width, height } = measureText(ctx, text, size, family))
+    mainThreadQrCache.set(key, canvas)
+    if (mainThreadQrCache.size > 64) {
+        const oldestKey = mainThreadQrCache.keys().next().value
+        if (oldestKey != null) {
+            mainThreadQrCache.delete(oldestKey)
+        }
     }
-    const { ascent, descent } = measureText(ctx, text, size, family)
-    return { size, width, height: Math.min(height, limit), ascent, descent }
+    return canvas
 }
 
 function rotateForPrint(canvas) {
@@ -311,6 +317,9 @@ function rotateForPrint(canvas) {
     rotated.width = canvas.height
     rotated.height = canvas.width
     const ctx = rotated.getContext('2d')
+    if (!ctx) {
+        throw new Error('2D canvas context is not available')
+    }
     // Rotate so the canvas height matches the print head width expected by Label/Job.
     ctx.translate(rotated.width, 0)
     ctx.rotate(Math.PI / 2)
@@ -318,114 +327,110 @@ function rotateForPrint(canvas) {
     return rotated
 }
 
-async function buildCanvasFromState() {
-    const media = Media[state.media] || Media.W24
-    const res = Resolution[state.resolution] || Resolution.LOW
-    const printWidth = media.printArea || 128
-    const marginStart = media.lmargin || 0
-    const marginEnd = media.rmargin || 0
-    const dotScale = (res?.dots?.[1] || 180) / 96 // interpret font sizes as CSS px and scale to printer dots
-    const isHorizontal = state.orientation === 'horizontal'
-    const maxFontDots = Math.max(8, printWidth)
-
+async function buildCanvasFromSnapshot(snapshot) {
+    const { media, res } = resolveMediaAndResolution(snapshot)
+    const context = buildRenderContext(snapshot, media, res)
     const measureCtx = document.createElement('canvas').getContext('2d')
-    const feedPadStart = 2 // dots of leading whitespace so print matches preview
-    const feedPadEnd = 8 // trailing whitespace
+    if (!measureCtx) {
+        throw new Error('2D canvas context is not available')
+    }
+
     const blocks = []
-    for (const item of state.items) {
+    for (const item of snapshot.items) {
         if (item.type === 'text') {
-            const family = item.fontFamily || 'sans-serif'
-            const requestedSizeDots = Math.round((item.fontSize || 16) * dotScale)
-            const { size: fontSizeDots, width: textWidth, height: textHeight, ascent, descent } = resolveTextMetrics(
-                item.text || '',
-                family,
-                requestedSizeDots,
-                maxFontDots,
-                measureCtx
-            )
-            const span = isHorizontal
-                ? Math.max(textWidth + (item.xOffset || 0), textHeight)
-                : Math.max(textHeight + Math.abs(item.yOffset || 0) * 2 + 4, textHeight)
-            blocks.push({ ref: item, span, fontSizeDots, textHeight, textWidth, family, ascent, descent })
+            const requestedSizeDots = Math.round(item.fontSize * context.dotScale)
+            const metrics = resolveTextMetrics(item.text || '', item.fontFamily || 'sans-serif', requestedSizeDots, context.maxFontDots, measureCtx)
+            const span = computeTextSpan({
+                isHorizontal: context.isHorizontal,
+                textWidth: metrics.width,
+                textHeight: metrics.height,
+                xOffset: item.xOffset || 0,
+                yOffset: item.yOffset || 0
+            })
+            blocks.push({
+                item,
+                span,
+                text: {
+                    fontSizeDots: metrics.size,
+                    family: item.fontFamily,
+                    ascent: metrics.ascent,
+                    descent: metrics.descent
+                }
+            })
             continue
         }
 
-        if (!item._qrCache || item._qrCacheKey !== `${item.data}-${item.size}`) {
-            item._qrCache = await buildQrCanvas(item.data, item.size)
-            item._qrCacheKey = `${item.data}-${item.size}`
-        }
-        const span = Math.max(item.height, item.size)
-        blocks.push({ ref: item, span, qrSize: item.size })
+        const qrCanvas = await getMainThreadQrCanvas(item.data, item.size)
+        blocks.push({ item, span: Math.max(item.height, item.size), qrCanvas })
     }
 
-    const totalLength = feedPadStart + blocks.reduce((sum, block) => sum + block.span, 0) + feedPadEnd
-    const minLength = res.minLength
-    const forcedLengthDots = state.mediaLengthMm
-        ? Math.max(minLength, Math.round((state.mediaLengthMm / 25.4) * res.dots[1]))
-        : null
-    const length = forcedLengthDots ? Math.max(forcedLengthDots, totalLength) : Math.max(totalLength, minLength)
-    const canvas = document.createElement('canvas')
-    canvas.width = isHorizontal ? length : printWidth
-    canvas.height = isHorizontal ? printWidth : length
-    const ctx = canvas.getContext('2d')
+    const length = computeRenderLength(blocks, context)
+    const preview = document.createElement('canvas')
+    preview.width = context.isHorizontal ? length : context.printWidth
+    preview.height = context.isHorizontal ? context.printWidth : length
+    const ctx = preview.getContext('2d')
+    if (!ctx) {
+        throw new Error('2D canvas context is not available')
+    }
     ctx.fillStyle = '#fff'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.fillRect(0, 0, preview.width, preview.height)
     ctx.fillStyle = '#000'
 
-    if (isHorizontal) {
-        let x = feedPadStart
-        for (const { ref: item, span, fontSizeDots, family, ascent, descent } of blocks) {
+    if (context.isHorizontal) {
+        let x = FEED_PAD_START
+        for (const block of blocks) {
+            const { item } = block
             const yAdjust = item.yOffset || 0
             if (item.type === 'text') {
-                const resolvedSize = fontSizeDots || Math.min(Math.max(8, Math.round((item.fontSize || 16) * dotScale)), maxFontDots)
-                ctx.font = `${resolvedSize}px ${family || item.fontFamily || 'sans-serif'}`
+                const text = block.text
+                const resolvedSize =
+                    text.fontSizeDots || Math.min(Math.max(8, Math.round(item.fontSize * context.dotScale)), context.maxFontDots)
+                ctx.font = `${resolvedSize}px ${text.family || item.fontFamily || 'sans-serif'}`
                 ctx.textBaseline = 'alphabetic'
-                const a = ascent || resolvedSize
-                const d = descent || 0
-                const blockH = a + d
-                const baselineY = (canvas.height - blockH) / 2 + a + yAdjust
+                const blockH = (text.ascent || resolvedSize) + (text.descent || 0)
+                const baselineY = (preview.height - blockH) / 2 + (text.ascent || resolvedSize) + yAdjust
                 ctx.fillText(item.text || '', (item.xOffset || 0) + x, baselineY)
             } else {
-                const qrY = Math.max(0, (canvas.height - item.size) / 2 + yAdjust)
-                ctx.drawImage(item._qrCache, (item.xOffset || 0) + x, qrY, item.size, item.size)
+                const qrY = Math.max(0, (preview.height - item.size) / 2 + yAdjust)
+                ctx.drawImage(block.qrCanvas, (item.xOffset || 0) + x, qrY, item.size, item.size)
             }
-            x += span
+            x += block.span
         }
     } else {
-        let y = feedPadStart
-        for (const { ref: item, span, fontSizeDots, family, ascent, descent } of blocks) {
+        let y = FEED_PAD_START
+        for (const block of blocks) {
+            const { item } = block
             const yAdjust = item.yOffset || 0
             if (item.type === 'text') {
-                const resolvedSize = fontSizeDots || Math.min(Math.max(8, Math.round((item.fontSize || 16) * dotScale)), maxFontDots)
-                ctx.font = `${resolvedSize}px ${family || item.fontFamily || 'sans-serif'}`
+                const text = block.text
+                const resolvedSize =
+                    text.fontSizeDots || Math.min(Math.max(8, Math.round(item.fontSize * context.dotScale)), context.maxFontDots)
+                ctx.font = `${resolvedSize}px ${text.family || item.fontFamily || 'sans-serif'}`
                 ctx.textBaseline = 'alphabetic'
-                const a = ascent || resolvedSize
-                const d = descent || 0
-                const blockH = a + d
-                const baselineY = y + (span - blockH) / 2 + a + yAdjust
+                const blockH = (text.ascent || resolvedSize) + (text.descent || 0)
+                const baselineY = y + (block.span - blockH) / 2 + (text.ascent || resolvedSize) + yAdjust
                 ctx.fillText(item.text || '', item.xOffset || 0, baselineY)
             } else {
-                const qrY = y + Math.max(0, (span - item.size) / 2 + yAdjust)
-                ctx.drawImage(item._qrCache, item.xOffset || 0, qrY, item.size, item.size)
+                const qrY = y + Math.max(0, (block.span - item.size) / 2 + yAdjust)
+                ctx.drawImage(block.qrCanvas, item.xOffset || 0, qrY, item.size, item.size)
             }
-            y += span
+            y += block.span
         }
     }
 
-    // Preview shows only the printable area; margins are hinted in renderPreview.
-    const preview = canvas
-    const printCanvas = isHorizontal ? canvas : rotateForPrint(canvas)
-    const effectiveMedia = { ...media, printArea: printWidth, lmargin: marginStart, rmargin: marginEnd }
+    const printCanvas = context.isHorizontal ? preview : rotateForPrint(preview)
+    const effectiveMedia = { ...media, printArea: context.printWidth, lmargin: context.marginStart, rmargin: context.marginEnd }
+
     return {
         preview,
         printCanvas,
         width: preview.width,
         height: preview.height,
         res,
-        printWidth,
-        marginStart,
-        marginEnd,
-        isHorizontal,
+        printWidth: context.printWidth,
+        marginStart: context.marginStart,
+        marginEnd: context.marginEnd,
+        isHorizontal: context.isHorizontal,
         media: effectiveMedia
     }
 }
@@ -493,23 +498,94 @@ function requestPreviewRender(priority = 'urgent') {
 }
 
 async function runPreviewRender() {
+    const snapshot = normalizePreviewState(state)
+    const snapshotKey = buildPreviewStateKey(snapshot)
     try {
-        const { preview, width, height, res, printWidth, marginStart, marginEnd, isHorizontal } =
-            await buildCanvasFromState()
+        const { media, res } = resolveMediaAndResolution(snapshot)
+        let previewSource = null
+        let width = 0
+        let height = 0
+        let resolutionDotsX = res?.dots?.[0] || 180
+        let printWidth = media?.printArea || 128
+        let marginStart = media?.lmargin || 0
+        let marginEnd = media?.rmargin || 0
+        let isHorizontal = snapshot.orientation === 'horizontal'
+        let printRgba = null
+        let printCanvasWidth = 0
+        let printCanvasHeight = 0
+
+        if (!previewWorkerUnavailable) {
+            try {
+                const rendered = await preparePreviewInWorker({ snapshot, media, resolution: res })
+                if (buildPreviewStateKey(normalizePreviewState(state)) !== rendered.stateKey) {
+                    rendered.previewBitmap?.close?.()
+                    return
+                }
+                previewSource = rendered.previewBitmap
+                width = rendered.width
+                height = rendered.height
+                resolutionDotsX = rendered.resolutionDotsX || resolutionDotsX
+                printWidth = rendered.printableWidth
+                marginStart = rendered.marginStart
+                marginEnd = rendered.marginEnd
+                isHorizontal = rendered.isHorizontal
+                printRgba = new Uint8ClampedArray(rendered.printRgba)
+                printCanvasWidth = rendered.printWidth
+                printCanvasHeight = rendered.printHeight
+            } catch (workerError) {
+                previewWorkerUnavailable = true
+                console.warn('Preview worker is unavailable. Falling back to main-thread preview rendering.', workerError)
+            }
+        }
+
+        if (!previewSource) {
+            const rendered = await buildCanvasFromSnapshot(snapshot)
+            if (buildPreviewStateKey(normalizePreviewState(state)) !== snapshotKey) {
+                return
+            }
+            previewSource = rendered.preview
+            width = rendered.width
+            height = rendered.height
+            resolutionDotsX = rendered.res?.dots?.[0] || resolutionDotsX
+            printWidth = rendered.printWidth
+            marginStart = rendered.marginStart
+            marginEnd = rendered.marginEnd
+            isHorizontal = rendered.isHorizontal
+            const printCtx = rendered.printCanvas.getContext('2d')
+            if (!printCtx) {
+                throw new Error('2D canvas context is not available')
+            }
+            const imageData = printCtx.getImageData(0, 0, rendered.printCanvas.width, rendered.printCanvas.height)
+            printRgba = new Uint8ClampedArray(imageData.data)
+            printCanvasWidth = rendered.printCanvas.width
+            printCanvasHeight = rendered.printCanvas.height
+        }
+
         const ctx = els.preview.getContext('2d')
+        if (!ctx) {
+            throw new Error('2D canvas context is not available')
+        }
         els.preview.width = width
         els.preview.height = height
-        const physicalScale = 96 / (res?.dots?.[0] || 180)
+        const physicalScale = 96 / resolutionDotsX
         const uiZoom = 1.3 // zoom the preview for easier viewing
         const cssScale = physicalScale * uiZoom
         els.preview.style.width = `${Math.max(width * cssScale, 1)}px`
         els.preview.style.height = `${Math.max(height * cssScale, 1)}px`
         ctx.clearRect(0, 0, width, height)
-        ctx.drawImage(preview, 0, 0)
-        const orientationLabel = state.orientation === 'horizontal' ? 'horizontal' : 'vertical'
+        ctx.drawImage(previewSource, 0, 0)
+        previewSource?.close?.()
+        const orientationLabel = isHorizontal ? 'horizontal' : 'vertical'
         const printableLabel = `${printWidth} dot printable`
         const marginLabel = marginStart || marginEnd ? `• margins ${marginStart}/${marginEnd} dots` : ''
-        els.dimensions.textContent = `${state.media} • ${printableLabel} ${marginLabel} • ${orientationLabel}`
+        els.dimensions.textContent = `${snapshot.media} • ${printableLabel} ${marginLabel} • ${orientationLabel}`
+        latestPreviewPayload = {
+            stateKey: snapshotKey,
+            resolutionId: res.id,
+            printWidth: printCanvasWidth,
+            printHeight: printCanvasHeight,
+            printRgba
+        }
     } catch (err) {
         console.error(err)
         setStatus('Preview failed. Check your inputs.', 'error')
@@ -554,29 +630,66 @@ async function doPrint() {
     setStatus('Rendering label...', 'info')
     els.print.disabled = true
     try {
-        const { printCanvas, media, res } = await buildCanvasFromState()
-        const selectedMedia = media || Media[state.media] || Media.W24
+        const snapshot = normalizePreviewState(state)
+        const snapshotKey = buildPreviewStateKey(snapshot)
+        const { media: selectedMedia, res } = resolveMediaAndResolution(snapshot)
         const job = new Job(selectedMedia, { resolution: res })
-
         let encodedPages = null
-        try {
-            const ctx = printCanvas.getContext('2d')
-            if (!ctx) {
-                throw new Error('2D canvas context is not available for print preparation')
+
+        if (
+            latestPreviewPayload &&
+            latestPreviewPayload.stateKey === snapshotKey &&
+            latestPreviewPayload.resolutionId === res.id &&
+            latestPreviewPayload.printRgba &&
+            latestPreviewPayload.printWidth > 0 &&
+            latestPreviewPayload.printHeight > 0
+        ) {
+            try {
+                const prepared = await preparePrintDataInWorker({
+                    imageData: {
+                        width: latestPreviewPayload.printWidth,
+                        height: latestPreviewPayload.printHeight,
+                        data: new Uint8ClampedArray(latestPreviewPayload.printRgba)
+                    },
+                    leftPadding: selectedMedia.lmargin || 0,
+                    resolutionId: res.id
+                })
+                const page = new Page(prepared.bitmap, prepared.width, prepared.length, res)
+                job.addPage(page)
+                encodedPages = [{ lines: prepared.encodedLines }]
+            } catch (cachePrepError) {
+                console.warn('Cached preview print-prep failed. Falling back to canvas rendering.', cachePrepError)
             }
-            const imageData = ctx.getImageData(0, 0, printCanvas.width, printCanvas.height)
-            const prepared = await preparePrintDataInWorker({
-                imageData,
-                leftPadding: selectedMedia.lmargin || 0,
-                resolutionId: res.id
-            })
-            const page = new Page(prepared.bitmap, prepared.width, prepared.length, res)
-            job.addPage(page)
-            encodedPages = [{ lines: prepared.encodedLines }]
-        } catch (workerError) {
-            console.warn('Worker-based print preparation failed. Falling back to synchronous preparation.', workerError)
-            const label = new Label(res, printCanvas)
-            job.addPage(label)
+        }
+
+        if (job.length === 0) {
+            const { printCanvas } = await buildCanvasFromSnapshot(snapshot)
+            try {
+                const ctx = printCanvas.getContext('2d')
+                if (!ctx) {
+                    throw new Error('2D canvas context is not available for print preparation')
+                }
+                const imageData = ctx.getImageData(0, 0, printCanvas.width, printCanvas.height)
+                const prepared = await preparePrintDataInWorker({
+                    imageData,
+                    leftPadding: selectedMedia.lmargin || 0,
+                    resolutionId: res.id
+                })
+                const page = new Page(prepared.bitmap, prepared.width, prepared.length, res)
+                job.addPage(page)
+                encodedPages = [{ lines: prepared.encodedLines }]
+                latestPreviewPayload = {
+                    stateKey: snapshotKey,
+                    resolutionId: res.id,
+                    printWidth: printCanvas.width,
+                    printHeight: printCanvas.height,
+                    printRgba: new Uint8ClampedArray(imageData.data)
+                }
+            } catch (workerError) {
+                console.warn('Worker-based print preparation failed. Falling back to synchronous preparation.', workerError)
+                const label = new Label(res, printCanvas)
+                job.addPage(label)
+            }
         }
 
         setStatus(`Requesting ${state.backend.toUpperCase()} device...`, 'info')
@@ -643,9 +756,10 @@ function init() {
     scheduleIdle(
         () => {
             try {
+                warmPreviewWorker()
                 warmPrintPrepWorker()
             } catch (err) {
-                console.warn('Print prep worker warm-up skipped.', err)
+                console.warn('Worker warm-up skipped.', err)
             }
         },
         { timeout: PREVIEW_IDLE_TIMEOUT_MS }

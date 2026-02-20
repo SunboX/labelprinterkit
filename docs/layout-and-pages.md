@@ -26,6 +26,16 @@ Both `Label` and `Page` are printable page objects exposing:
 
 Use `bitmapToImageData(...)` to visualize a bitmap in browser debugging flows.
 
+## Frontend Worker Rendering
+
+The editor demo at `examples/complex_label_with_frontend/` uses a dedicated preview worker (`preview-render.worker.mjs`) for:
+
+- text measurement and font fitting
+- QR matrix rasterization
+- preview canvas generation
+
+If worker/offscreen rendering is unavailable, the UI falls back to main-thread canvas rendering.
+
 ## Utility Functions
 
 - `bytesPerLine(width)`: returns `Math.ceil(width / 8)`.
