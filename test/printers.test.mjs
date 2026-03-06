@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { Job, Media, MediaType, P700, Resolution, StatusCodes, encodeLine } from '../src/index.mjs'
+import { Job, Media, MediaType, P700, PrinterErrorCode, Resolution, Status, StatusCodes, encodeLine } from '../src/index.mjs'
 
 function page({ width, resolution = Resolution.LOW, length = Resolution.LOW.minLength } = {}) {
     return { width, resolution, length, lines: () => [] }
@@ -90,6 +90,60 @@ test('Printer reports friendly NO_MEDIA message before printing', async () => {
     const printer = new P700(backend)
 
     await assert.rejects(printer.print(makeJob(Media.W9)), /No tape is loaded/)
+})
+
+test('Status exposes normalized loaded media details for unsupported loaded media', () => {
+    const status = new Status(
+        makeStatus({
+            mediaWidth: 12,
+            mediaType: MediaType.NON_LAMINATED_TAPE
+        })
+    )
+
+    assert.deepEqual(status.mediaDetails, {
+        width: 12,
+        mediaType: MediaType.NON_LAMINATED_TAPE,
+        mediaTypeName: 'NON_LAMINATED_TAPE',
+        mediaId: null,
+        isKnown: false
+    })
+})
+
+test('Printer exposes structured mismatch details for unsupported loaded media', async () => {
+    const backend = new FakeBackend([
+        makeStatus({
+            errorHigh: 0x01, // REPLACE_MEDIA
+            mediaWidth: 12,
+            mediaType: MediaType.NON_LAMINATED_TAPE
+        })
+    ])
+    const printer = new P700(backend)
+
+    await assert.rejects(
+        printer.print(makeJob(Media.W9)),
+        (error) => {
+            assert.equal(error?.code, PrinterErrorCode.MEDIA_MISMATCH)
+            assert.deepEqual(error?.details?.loadedMedia, {
+                width: 12,
+                mediaType: MediaType.NON_LAMINATED_TAPE,
+                mediaTypeName: 'NON_LAMINATED_TAPE',
+                mediaId: null,
+                isKnown: false
+            })
+            assert.deepEqual(error?.details?.expectedMedia, {
+                width: Media.W9.width,
+                mediaType: Media.W9.mediaType,
+                mediaTypeName: 'LAMINATED_TAPE',
+                mediaId: Media.W9.id,
+                isKnown: true
+            })
+            assert.match(
+                error?.message || '',
+                /Loaded media is incompatible with this print job\. The job expects 9mm tape\. Replace media and retry\./
+            )
+            return true
+        }
+    )
 })
 
 test('Printer checks status both before and after sending a print job', async () => {
