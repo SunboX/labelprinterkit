@@ -13,6 +13,10 @@ import {
 } from './constants.mjs'
 import { packbitsEncode } from './packbits.mjs'
 
+export const PrinterErrorCode = Object.freeze({
+    MEDIA_MISMATCH: 'MEDIA_MISMATCH'
+})
+
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -75,40 +79,90 @@ function describeMedia(media) {
     return `${media.width}mm tape`
 }
 
-function statusMessage(status, expectedMedia) {
+function resolveMediaTypeName(mediaType) {
+    return Object.entries(MediaType).find(([, value]) => value === mediaType)?.[0] || null
+}
+
+function isKnownMedia(media) {
+    return Boolean(media && media !== Media.NO_MEDIA && media !== Media.UNSUPPORTED_MEDIA)
+}
+
+function normalizeMediaDetails(media, fallbackWidth = 0, fallbackMediaType = null) {
+    const knownMedia = isKnownMedia(media)
+    const mediaType = knownMedia ? media.mediaType : fallbackMediaType ?? media?.mediaType ?? null
+    return {
+        width: knownMedia ? Number(media.width) || 0 : Number(fallbackWidth) || 0,
+        mediaType: mediaType ?? null,
+        mediaTypeName: resolveMediaTypeName(mediaType),
+        mediaId: knownMedia ? media.id : null,
+        isKnown: knownMedia
+    }
+}
+
+function createPrinterStatusError(message, code = null, details = null) {
+    const error = new Error(message)
+    if (typeof code === 'string' && code) {
+        error.code = code
+    }
+    if (details && typeof details === 'object') {
+        error.details = details
+    }
+    return error
+}
+
+function createMediaMismatchError(message, status, expectedMedia) {
+    return createPrinterStatusError(message, PrinterErrorCode.MEDIA_MISMATCH, {
+        loadedMedia: status.mediaDetails,
+        expectedMedia: normalizeMediaDetails(expectedMedia, expectedMedia?.width, expectedMedia?.mediaType)
+    })
+}
+
+function createStatusError(status, expectedMedia) {
     const flags = status.errors.flags
     if (flags.COVER_OPEN) {
-        return 'Printer cover is open. Close the cover and try again.'
+        return createPrinterStatusError('Printer cover is open. Close the cover and try again.')
     }
     if (flags.NO_MEDIA) {
-        return 'No tape is loaded. Insert a tape cassette and try again.'
+        return createPrinterStatusError('No tape is loaded. Insert a tape cassette and try again.')
     }
     if (flags.CUTTER_JAM) {
-        return 'Printer cutter jam detected. Clear the jam and try again.'
+        return createPrinterStatusError('Printer cutter jam detected. Clear the jam and try again.')
     }
     if (flags.OVERHEATING) {
-        return 'Printer is overheating. Let it cool down, then try again.'
+        return createPrinterStatusError('Printer is overheating. Let it cool down, then try again.')
     }
     if (flags.WEAK_BATTERY) {
-        return 'Printer battery is low. Charge or power the printer and try again.'
+        return createPrinterStatusError('Printer battery is low. Charge or power the printer and try again.')
     }
     if (flags.REPLACE_MEDIA) {
         const loaded = describeMedia(status.media)
         const expected = describeMedia(expectedMedia)
         if (loaded !== expected && status.media !== Media.NO_MEDIA && status.media !== Media.UNSUPPORTED_MEDIA) {
-            return `Loaded media mismatch: printer has ${loaded}, but this job expects ${expected}. Load ${expected} and retry.`
+            return createMediaMismatchError(
+                `Loaded media mismatch: printer has ${loaded}, but this job expects ${expected}. Load ${expected} and retry.`,
+                status,
+                expectedMedia
+            )
         }
-        return `Loaded media is incompatible with this print job. The job expects ${expected}. Replace media and retry.`
+        return createMediaMismatchError(
+            `Loaded media is incompatible with this print job. The job expects ${expected}. Replace media and retry.`,
+            status,
+            expectedMedia
+        )
     }
 
     if (expectedMedia && status.media !== expectedMedia) {
         const loaded = describeMedia(status.media)
         const expected = describeMedia(expectedMedia)
-        return `Loaded media mismatch: printer has ${loaded}, but this job expects ${expected}. Load ${expected} and retry.`
+        return createMediaMismatchError(
+            `Loaded media mismatch: printer has ${loaded}, but this job expects ${expected}. Load ${expected} and retry.`,
+            status,
+            expectedMedia
+        )
     }
 
     if (!status.ready()) {
-        return `Printer reported an error (${status.errors.toString()}).`
+        return createPrinterStatusError(`Printer reported an error (${status.errors.toString()}).`)
     }
 
     return null
@@ -128,6 +182,7 @@ export class Status {
         this.tapeColor = Object.values(TapeColor).find((v) => v === data[24]) ?? data[24]
         this.textColor = Object.values(TextColor).find((v) => v === data[25]) ?? data[25]
         this._media = null
+        this._mediaDetails = null
     }
 
     ready() {
@@ -139,6 +194,13 @@ export class Status {
             this._media = getMedia(this.mediaWidth, this.mediaType)
         }
         return this._media
+    }
+
+    get mediaDetails() {
+        if (!this._mediaDetails) {
+            this._mediaDetails = normalizeMediaDetails(this.media, this.mediaWidth, this.mediaType)
+        }
+        return this._mediaDetails
     }
 }
 
@@ -196,9 +258,9 @@ export class GenericPrinter extends BasePrinter {
     }
 
     _assertStatus(status, job) {
-        const message = statusMessage(status, job.media)
-        if (message) {
-            throw new Error(message)
+        const error = createStatusError(status, job.media)
+        if (error) {
+            throw error
         }
     }
 
