@@ -63,7 +63,7 @@ Runtime version access:
 ```js
 import { getLibraryVersion } from './src/index.mjs'
 
-console.log(getLibraryVersion()) // "1.0.8"
+console.log(getLibraryVersion()) // "1.0.9"
 ```
 
 For a richer layout with a QR code, see `examples/complex_label_with_qrcode.mjs` (uses the `qrcode` ESM from jsdelivr and exposes `window.printLabel` you can wire to a button). An interactive editor with drag-to-reorder, resizing, font/QR editing, and label size controls lives in `examples/complex_label_with_frontend/index.html` (served over https/localhost).
@@ -86,6 +86,7 @@ The editor uses dedicated Web Workers for preview rendering (`preview-render.wor
 -   `Label`, `TextItem`, `BoxItem` (from `src/label.mjs`): Canvas-based layout helpers. You can also use `Page.fromImageData(...)` if you already have a bitmap.
 -   `Job` (from `src/job.mjs`): Validates media width/resolution, supports auto-cut, chain printing, and special tape flags.
 -   Printers (from `src/printers.mjs`): Implements the Brother raster protocol with PackBits compression.
+-   `Status.mediaDetails` and `PrinterErrorCode.MEDIA_MISMATCH` (from `src/printers.mjs`): inspect unsupported loaded cassette details without parsing human-readable error strings.
 -   `getLibraryVersion()` / `LIBRARY_VERSION` (from `src/version.mjs`): Runtime library version access.
 -   Backends:
     -   `WebUSBBackend` for USB printer class devices.
@@ -108,6 +109,7 @@ The editor uses dedicated Web Workers for preview rendering (`preview-render.wor
 -   WebUSB/WebBluetooth require a secure context (https or localhost) and a user gesture to request devices/ports.
 -   Fonts come from whatever your page loads; adjust the CSS font stack you pass into `TextItem`.
 -   If you need to debug output, use `bitmapToImageData` from `src/page.mjs` to visualize the raster data in a canvas.
+-   Print mismatches now include structured `error.details.loadedMedia` / `error.details.expectedMedia` payloads so callers can localize or enrich tape mismatch messages.
 
 #### License
 

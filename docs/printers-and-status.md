@@ -31,6 +31,7 @@ Status requests use `_requestStatus(...)`; for non-custom backends this sends `E
 
 - `errors` (bit flags from two bytes)
 - `mediaWidth`, `mediaType`, derived `media`
+- `mediaDetails` for normalized loaded-media inspection, including unsupported cassette widths/types
 - `status`, `notification`
 - `tapeColor`, `textColor`
 
@@ -38,10 +39,17 @@ Helpers:
 
 - `status.ready()`: true when no error flags are set.
 - `status.media`: resolved media profile via `getMedia(...)`.
+- `status.mediaDetails`: normalized `{ width, mediaType, mediaTypeName, mediaId, isKnown }` details.
 
 ## User-Facing Errors
 
 Media and printer conditions are mapped to readable messages (for example media mismatch, no media, cover open, overheating).
+
+Structured mismatch errors also expose:
+
+- `error.code === PrinterErrorCode.MEDIA_MISMATCH`
+- `error.details.loadedMedia`
+- `error.details.expectedMedia`
 
 See `printer-status-errors.md` for the full message mapping.
 

@@ -52,5 +52,5 @@ If media/status is wrong (for example, 24mm loaded but 9mm requested), `printer.
 ```js
 import { getLibraryVersion } from './src/index.mjs'
 
-console.log(getLibraryVersion()) // "1.0.8"
+console.log(getLibraryVersion()) // "1.0.9"
 ```
