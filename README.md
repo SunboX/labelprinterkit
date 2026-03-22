@@ -63,7 +63,7 @@ Runtime version access:
 ```js
 import { getLibraryVersion } from './src/index.mjs'
 
-console.log(getLibraryVersion()) // "1.0.7"
+console.log(getLibraryVersion()) // "1.0.8"
 ```
 
 For a richer layout with a QR code, see `examples/complex_label_with_qrcode.mjs` (uses the `qrcode` ESM from jsdelivr and exposes `window.printLabel` you can wire to a button). An interactive editor with drag-to-reorder, resizing, font/QR editing, and label size controls lives in `examples/complex_label_with_frontend/index.html` (served over https/localhost).
@@ -108,3 +108,7 @@ The editor uses dedicated Web Workers for preview rendering (`preview-render.wor
 -   WebUSB/WebBluetooth require a secure context (https or localhost) and a user gesture to request devices/ports.
 -   Fonts come from whatever your page loads; adjust the CSS font stack you pass into `TextItem`.
 -   If you need to debug output, use `bitmapToImageData` from `src/page.mjs` to visualize the raster data in a canvas.
+
+#### License
+
+The code in this repository is licensed under PolyForm Noncommercial 1.0.0. See `LICENSE` for the full terms and `NOTICE` for the required notices that must accompany redistributed copies.
