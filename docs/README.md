@@ -33,5 +33,5 @@ import {
 ```
 
 ```js
-getLibraryVersion() // "1.0.7"
+getLibraryVersion() // "1.0.8"
 ```
