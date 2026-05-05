@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 André Fiedler
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 export class WebUSBBackend {
     constructor(device, { outEndpoint = 0x02, inEndpoint = 0x81, interfaceNumber = 0 } = {}) {
         this.device = device

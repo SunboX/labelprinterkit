@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 André Fiedler
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 const DEFAULT_TIMEOUT_MS = 15000
 
 function makeDefaultWorker() {

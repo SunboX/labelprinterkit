@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 André Fiedler
+
+SPDX-License-Identifier: CC-BY-SA-4.0
+-->
+
 # Versioning
 
 Use the runtime version API to read the exact library version that is currently loaded.
@@ -12,8 +18,8 @@ Use the runtime version API to read the exact library version that is currently 
 ```js
 import { getLibraryVersion, LIBRARY_VERSION } from './src/index.mjs'
 
-console.log(getLibraryVersion()) // "1.0.9"
-console.log(LIBRARY_VERSION) // "1.0.9"
+console.log(getLibraryVersion()) // "1.0.10"
+console.log(LIBRARY_VERSION) // "1.0.10"
 ```
 
 ## When To Use

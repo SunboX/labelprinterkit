@@ -1,8 +1,8 @@
 {
   "name": "labelprinterkit-web",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "Browser-ready label printer toolkit demo (WebUSB/WebBluetooth) with editor UI",
-  "license": "PolyForm-Noncommercial-1.0.0",
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "scripts": {
     "start": "node examples/server.mjs",

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 André Fiedler
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 import { prepareEncodedPageFromImageData } from '../../src/print-prep.mjs'
 
 self.addEventListener('message', (event) => {

@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 André Fiedler
+
+SPDX-License-Identifier: CC-BY-SA-4.0
+-->
+
 # Documentation
 
 This folder contains module-level documentation for the library.
@@ -33,5 +39,5 @@ import {
 ```
 
 ```js
-getLibraryVersion() // "1.0.9"
+getLibraryVersion() // "1.0.10"
 ```

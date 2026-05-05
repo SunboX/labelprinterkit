@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 André Fiedler
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 import QRCode from 'https://cdn.jsdelivr.net/npm/qrcode@1.5.1/+esm'
 import {
     Label,

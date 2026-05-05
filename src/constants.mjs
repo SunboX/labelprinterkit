@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 André Fiedler
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // JavaScript port of labelprinterkit constants.
 // The structures mirror the original enums and NamedTuple values.
 

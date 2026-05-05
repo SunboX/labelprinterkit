@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 André Fiedler
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Complex label with text rows and a QR code. Serve this over https/localhost.
 // Dependencies: qrcode (ESM) from jsdelivr.
 

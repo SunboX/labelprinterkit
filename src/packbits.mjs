@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 André Fiedler
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Minimal PackBits encoder used by the Brother raster protocol.
 export function packbitsEncode(bytes) {
     const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)

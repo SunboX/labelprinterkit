@@ -1,0 +1,15 @@
+version = 1
+SPDX-PackageName = "labelprinterkit"
+SPDX-PackageDownloadLocation = "https://github.com/SunboX/labelprinterkit"
+
+[[annotations]]
+path = [".gitignore", ".prettierrc.json", "package.json", "package-lock.json"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 André Fiedler"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+[[annotations]]
+path = "LICENSE"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2007 Free Software Foundation, Inc. <https://fsf.org/>"
+SPDX-License-Identifier = "GPL-3.0-or-later"

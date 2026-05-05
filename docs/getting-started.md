@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 André Fiedler
+
+SPDX-License-Identifier: CC-BY-SA-4.0
+-->
+
 # Getting Started
 
 ## Requirements
@@ -52,5 +58,5 @@ If media/status is wrong (for example, 24mm loaded but 9mm requested), `printer.
 ```js
 import { getLibraryVersion } from './src/index.mjs'
 
-console.log(getLibraryVersion()) // "1.0.9"
+console.log(getLibraryVersion()) // "1.0.10"
 ```

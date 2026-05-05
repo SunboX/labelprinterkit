@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 André Fiedler
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 export const FEED_PAD_START = 2
 export const FEED_PAD_END = 8
 

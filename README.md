@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 André Fiedler
+
+SPDX-License-Identifier: CC-BY-SA-4.0
+-->
+
 ### Labelprinterkit (JavaScript, WebUSB/WebBluetooth)
 
 Browser-ready label printing toolkit for Brother P-Touch devices. Everything is ESM (`.mjs`) and async/await friendly. Backends: WebUSB and WebBluetooth (for BLE-capable models or adapters).
@@ -63,7 +69,7 @@ Runtime version access:
 ```js
 import { getLibraryVersion } from './src/index.mjs'
 
-console.log(getLibraryVersion()) // "1.0.9"
+console.log(getLibraryVersion()) // "1.0.10"
 ```
 
 For a richer layout with a QR code, see `examples/complex_label_with_qrcode.mjs` (uses the `qrcode` ESM from jsdelivr and exposes `window.printLabel` you can wire to a button). An interactive editor with drag-to-reorder, resizing, font/QR editing, and label size controls lives in `examples/complex_label_with_frontend/index.html` (served over https/localhost).
@@ -113,4 +119,24 @@ The editor uses dedicated Web Workers for preview rendering (`preview-render.wor
 
 #### License
 
-The code in this repository is licensed under PolyForm Noncommercial 1.0.0. See `LICENSE` for the full terms and `NOTICE` for the required notices that must accompany redistributed copies.
+This project is available under two licensing options:
+
+##### 1. Open-source license
+
+Source code, examples, and tests are licensed under the GNU General Public License v3.0 or later (`GPL-3.0-or-later`).
+
+You may use, modify, and distribute this project under the GPL. If you distribute modified versions or larger works based on this project, they must comply with the GPL, including source-code availability requirements.
+
+Documentation is licensed under Creative Commons Attribution-ShareAlike 4.0 (`CC-BY-SA-4.0`) unless otherwise marked.
+
+##### 2. Commercial/proprietary license
+
+For use in closed-source, proprietary, or otherwise GPL-incompatible products, a separate commercial license is required.
+
+Commercial licensing contact: https://github.com/SunboX
+
+##### Attribution / notices
+
+Copyright (C) 2026 André Fiedler.
+
+Copyright, license, attribution, and source-origin notices must be preserved as required by the GPL and the notice files in this repository. See `NOTICE.md` and `COMMERCIAL-LICENSE.md` for details.

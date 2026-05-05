@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 André Fiedler
+
+SPDX-License-Identifier: CC-BY-SA-4.0
+-->
+
 # Printer Status And Media Errors
 
 This project now checks printer status before and after each print job and throws user-facing error messages when the printer reports an issue.
