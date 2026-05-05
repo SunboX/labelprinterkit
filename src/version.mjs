@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-export const LIBRARY_VERSION = '1.0.10'
+export const LIBRARY_VERSION = '1.0.11'
 
 export function getLibraryVersion() {
     return LIBRARY_VERSION

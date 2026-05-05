@@ -16,10 +16,10 @@ Use the runtime version API to read the exact library version that is currently 
 ## Example
 
 ```js
-import { getLibraryVersion, LIBRARY_VERSION } from './src/index.mjs'
+import { getLibraryVersion, LIBRARY_VERSION } from 'labelprinterkit-web'
 
-console.log(getLibraryVersion()) // "1.0.10"
-console.log(LIBRARY_VERSION) // "1.0.10"
+console.log(getLibraryVersion()) // "1.0.11"
+console.log(LIBRARY_VERSION) // "1.0.11"
 ```
 
 ## When To Use
