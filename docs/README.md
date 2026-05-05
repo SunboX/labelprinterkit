@@ -35,9 +35,9 @@ import {
   P700,
   WebUSBBackend,
   getLibraryVersion
-} from 'labelprinterkit-web'
+} from 'labelprinterkit'
 ```
 
 ```js
-getLibraryVersion() // "1.0.11"
+getLibraryVersion() // "1.0.14"
 ```

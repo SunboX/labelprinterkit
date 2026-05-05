@@ -8,10 +8,12 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 
 Browser-ready label printing toolkit for Brother P-Touch devices. Everything is ESM (`.mjs`) and async/await friendly. Backends: WebUSB and WebBluetooth (for BLE-capable models or adapters).
 
+NPM package: [`labelprinterkit`](https://www.npmjs.com/package/labelprinterkit)
+
 #### Quickstart
 
 ```bash
-npm install labelprinterkit-web
+npm install labelprinterkit
 ```
 
 ```js
@@ -27,7 +29,7 @@ import {
     WebUSBBackend,
     WebBluetoothBackend,
     getLibraryVersion
-} from 'labelprinterkit-web'
+} from 'labelprinterkit'
 
 async function connectBackend(mode = 'usb') {
     if (mode === 'usb') {
@@ -71,9 +73,9 @@ printSample().catch(console.error)
 Runtime version access:
 
 ```js
-import { getLibraryVersion } from 'labelprinterkit-web'
+import { getLibraryVersion } from 'labelprinterkit'
 
-console.log(getLibraryVersion()) // "1.0.11"
+console.log(getLibraryVersion()) // "1.0.14"
 ```
 
 For a richer layout with a QR code, see `examples/complex_label_with_qrcode.mjs` (uses the `qrcode` ESM from jsdelivr and exposes `window.printLabel` you can wire to a button). An interactive editor with drag-to-reorder, resizing, font/QR editing, and label size controls lives in `examples/complex_label_with_frontend/index.html` (served over https/localhost).

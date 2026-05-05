@@ -26,7 +26,7 @@ Open:
 ## Minimal Print Flow
 
 ```js
-import { BoxItem, Job, Label, Media, P700, Resolution, TextItem, WebUSBBackend } from 'labelprinterkit-web'
+import { BoxItem, Job, Label, Media, P700, Resolution, TextItem, WebUSBBackend } from 'labelprinterkit'
 
 const backend = await WebUSBBackend.requestDevice({ filters: [{ classCode: 7 }] })
 const media = Media.W12
@@ -56,7 +56,7 @@ If media/status is wrong (for example, 24mm loaded but 9mm requested), `printer.
 ## Check Library Version At Runtime
 
 ```js
-import { getLibraryVersion } from 'labelprinterkit-web'
+import { getLibraryVersion } from 'labelprinterkit'
 
-console.log(getLibraryVersion()) // "1.0.11"
+console.log(getLibraryVersion()) // "1.0.14"
 ```

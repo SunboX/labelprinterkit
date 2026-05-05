@@ -1,7 +1,19 @@
 {
-  "name": "labelprinterkit-web",
-  "version": "1.0.11",
+  "name": "labelprinterkit",
+  "version": "1.0.14",
   "description": "Browser-ready label printing toolkit for Brother P-Touch devices using WebUSB/WebBluetooth.",
+  "keywords": [
+    "label-printer",
+    "label-printing",
+    "brother",
+    "p-touch",
+    "ptouch",
+    "webusb",
+    "webbluetooth",
+    "browser",
+    "esm",
+    "raster"
+  ],
   "license": "GPL-3.0-or-later",
   "type": "module",
   "main": "./src/index.mjs",
