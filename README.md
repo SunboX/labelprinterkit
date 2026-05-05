@@ -10,6 +10,8 @@ Browser-ready label printing toolkit for Brother P-Touch devices. Everything is 
 
 NPM package: [`labelprinterkit`](https://www.npmjs.com/package/labelprinterkit)
 
+Live production use: [`labelprinter.app`](https://labelprinter.app/)
+
 #### Quickstart
 
 ```bash
@@ -75,7 +77,7 @@ Runtime version access:
 ```js
 import { getLibraryVersion } from 'labelprinterkit'
 
-console.log(getLibraryVersion()) // "1.0.14"
+console.log(getLibraryVersion()) // "1.0.15"
 ```
 
 For a richer layout with a QR code, see `examples/complex_label_with_qrcode.mjs` (uses the `qrcode` ESM from jsdelivr and exposes `window.printLabel` you can wire to a button). An interactive editor with drag-to-reorder, resizing, font/QR editing, and label size controls lives in `examples/complex_label_with_frontend/index.html` (served over https/localhost).

@@ -58,5 +58,5 @@ If media/status is wrong (for example, 24mm loaded but 9mm requested), `printer.
 ```js
 import { getLibraryVersion } from 'labelprinterkit'
 
-console.log(getLibraryVersion()) // "1.0.14"
+console.log(getLibraryVersion()) // "1.0.15"
 ```
